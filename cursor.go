@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"sync/atomic"
 
 	"github.com/dancannon/gorethink/encoding"
 	p "github.com/dancannon/gorethink/ql2"
@@ -58,6 +59,7 @@ type Cursor struct {
 	lastErr   error
 	fetching  bool
 	closed    bool
+	released  int32
 	finished  bool
 	isAtom    bool
 	buffer    queue
@@ -85,6 +87,10 @@ func (c *Cursor) Err() error {
 // encountered, the cursor is closed automatically. Close is idempotent.
 func (c *Cursor) Close() error {
 	var err error
+
+	if c.released != 0 || !atomic.CompareAndSwapInt32(&c.released, 0, 1) {
+		return nil
+	}
 
 	if c.closed {
 		return nil
